@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="theme-color" content="#1c2015" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="RNG TIMER" />
+<title>RANDOM OPS TIMER</title>
+<style>
+  :root{
+    --od-dark:#1c2015;      /* olive drab dark */
+    --od:#3a4127;           /* olive drab */
+    --od-light:#556036;     /* lighter drab */
+    --khaki:#c7c19a;        /* khaki text */
+    --khaki-dim:#8f8c6e;
+    --amber:#e0a72b;        /* amber accent */
+    --amber-bright:#ffc042;
+    --red:#c0341d;
+    --green-sig:#7ea640;
+    --black:#0e1109;
+    --stencil: "Stencil Std", "Arial Black", "Impact", system-ui, sans-serif;
+    --mono: "Courier New", ui-monospace, monospace;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; margin:0; }
+  body{
+    font-family: var(--mono);
+    color: var(--khaki);
+    background:
+      repeating-linear-gradient(45deg, rgba(0,0,0,.10) 0 14px, rgba(0,0,0,0) 14px 28px),
+      radial-gradient(120% 80% at 50% -10%, #2a3019 0%, var(--od-dark) 55%, var(--black) 100%);
+    background-attachment: fixed;
+    overflow:hidden;
+    user-select:none;
+    -webkit-user-select:none;
+    touch-action: manipulation;
+  }
+  /* subtle camo blobs */
+  body::before{
+    content:""; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.14;
+    background:
+      radial-gradient(60px 46px at 18% 22%, #4b5330 0 60%, transparent 62%),
+      radial-gradient(80px 60px at 78% 30%, #2c3119 0 60%, transparent 62%),
+      radial-gradient(70px 52px at 40% 70%, #5a6338 0 60%, transparent 62%),
+      radial-gradient(90px 64px at 85% 78%, #23281440 0 60%, transparent 62%),
+      radial-gradient(50px 40px at 8% 82%, #3d4426 0 60%, transparent 62%);
+    filter: blur(1px);
+  }
+
+  #app{
+    position:relative; z-index:1;
+    height:100dvh; height:100vh;
+    display:flex; flex-direction:column;
+    padding: calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 16px);
+    max-width:560px; margin:0 auto;
+  }
+
+  /* ---- Top bar ---- */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    border:2px solid var(--od-light);
+    background: linear-gradient(180deg, rgba(85,96,54,.35), rgba(0,0,0,.25));
+    padding:8px 12px; letter-spacing:2px; font-size:12px; text-transform:uppercase;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.4);
+  }
+  .topbar .dot{ width:10px;height:10px;border-radius:50%; background:var(--green-sig);
+    box-shadow:0 0 8px var(--green-sig); animation: blink 1.6s infinite; }
+  @keyframes blink{ 0%,70%{opacity:1} 85%{opacity:.25} 100%{opacity:1} }
+  .topbar b{ color:var(--amber); letter-spacing:3px; }
+
+  /* ---- Screens ---- */
+  .screen{ flex:1; display:none; flex-direction:column; min-height:0; padding-top:14px; }
+  .screen.active{ display:flex; animation: fade .25s ease; }
+  @keyframes fade{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+
+  .panel{
+    border:2px solid var(--od-light);
+    background: linear-gradient(180deg, rgba(28,32,21,.85), rgba(14,17,9,.9));
+    position:relative;
+    padding:18px 16px;
+  }
+  /* corner brackets */
+  .panel::before,.panel::after{
+    content:""; position:absolute; width:14px; height:14px; border:2px solid var(--amber);
+  }
+  .panel::before{ top:-2px; left:-2px; border-right:0; border-bottom:0; }
+  .panel::after{ bottom:-2px; right:-2px; border-left:0; border-top:0; }
+
+  h1,h2,h3{ font-family:var(--stencil); font-weight:900; letter-spacing:3px; text-transform:uppercase; margin:0; }
+  .label{ font-size:11px; letter-spacing:3px; color:var(--khaki-dim); text-transform:uppercase; margin-bottom:6px; }
+  .hint{ font-size:11px; color:var(--khaki-dim); letter-spacing:1px; line-height:1.5; }
+
+  .rangeblock{ margin-top:14px; }
+  .rangeblock .title{ display:flex; align-items:center; gap:8px; font-family:var(--stencil);
+    letter-spacing:3px; color:var(--khaki); font-size:15px; margin-bottom:8px; }
+  .rangeblock .title .tag{ font-size:10px; background:var(--od); border:1px solid var(--od-light);
+    color:var(--amber); padding:2px 6px; letter-spacing:2px; }
+
+  .steppers{ display:flex; gap:8px; }
+  .unit{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:center;
+    border:2px solid var(--od-light); background:rgba(0,0,0,.35); }
+  .unit .u-label{ font-size:9px; letter-spacing:1px; color:var(--khaki-dim);
+    padding:5px 0 2px; text-transform:uppercase; }
+  .unit .u-val{ font-family:var(--stencil); font-size:30px; color:var(--amber-bright);
+    line-height:1; padding:2px 0 4px; text-shadow:0 0 12px rgba(224,167,43,.35); font-variant-numeric:tabular-nums;}
+  .unit .btns{ display:flex; width:100%; border-top:2px solid var(--od-light); }
+  .unit .btns button{ flex:1; min-width:0; background:var(--od); color:var(--khaki); border:0; padding:10px 0;
+    font-size:19px; font-family:var(--stencil); cursor:pointer; }
+  .unit .btns button:active{ background:var(--od-light); color:#fff; }
+  .unit .btns button:first-child{ border-right:1px solid var(--od-light); }
+
+  .err{ color:var(--red); font-size:12px; letter-spacing:1px; margin-top:10px; min-height:16px;
+    text-transform:uppercase; font-weight:bold; }
+
+  button.cta{
+    width:100%; margin-top:16px; padding:18px; cursor:pointer;
+    font-family:var(--stencil); font-size:22px; letter-spacing:4px; text-transform:uppercase;
+    color:var(--black); background:linear-gradient(180deg,var(--amber-bright),var(--amber));
+    border:2px solid #6b4e12; box-shadow:0 4px 0 #6b4e12, inset 0 1px 0 rgba(255,255,255,.4);
+  }
+  button.cta:active{ transform:translateY(3px); box-shadow:0 1px 0 #6b4e12, inset 0 1px 0 rgba(255,255,255,.3); }
+  button.cta.danger{ background:linear-gradient(180deg,#e05a45,var(--red)); color:#fff; border-color:#5c1a10; box-shadow:0 4px 0 #5c1a10; }
+  button.cta.danger:active{ box-shadow:0 1px 0 #5c1a10; }
+  button.cta.ghost{ background:transparent; color:var(--khaki); border:2px solid var(--od-light); box-shadow:none; font-size:15px; padding:12px; }
+  button.cta.ghost:active{ background:rgba(255,255,255,.05); transform:none; }
+
+  /* ---- READY / RUNNING ---- */
+  .center{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; min-height:0; }
+  .stamp{ font-family:var(--stencil); letter-spacing:5px; text-transform:uppercase; }
+
+  .radar{ position:relative; width:220px; height:220px; margin:8px auto 4px; }
+  .radar .ring{ position:absolute; inset:0; border:2px solid var(--od-light); border-radius:50%; }
+  .radar .ring.r2{ inset:26px; opacity:.7; }
+  .radar .ring.r3{ inset:54px; opacity:.5; }
+  .radar .cross-h,.radar .cross-v{ position:absolute; background:var(--od-light); opacity:.6; }
+  .radar .cross-h{ left:0; right:0; top:50%; height:1px; }
+  .radar .cross-v{ top:0; bottom:0; left:50%; width:1px; }
+  .radar .sweep{ position:absolute; inset:0; border-radius:50%; overflow:hidden; }
+  .radar .sweep::before{
+    content:""; position:absolute; left:50%; top:50%; width:50%; height:50%;
+    transform-origin:0 0;
+    background: conic-gradient(from 0deg, rgba(126,166,64,.55), rgba(126,166,64,0) 60deg);
+    animation: sweep 2.4s linear infinite;
+  }
+  @keyframes sweep{ to{ transform:rotate(360deg); } }
+  .radar .core{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; }
+  .radar .core .big{ font-family:var(--stencil); font-size:20px; letter-spacing:3px; color:var(--green-sig); text-shadow:0 0 12px rgba(126,166,64,.6); }
+  .radar .pulse{ width:16px; height:16px; border-radius:50%; background:var(--green-sig);
+    box-shadow:0 0 16px var(--green-sig); animation: pulse 1.1s ease-in-out infinite; margin-top:8px; }
+  @keyframes pulse{ 0%,100%{ transform:scale(.7); opacity:.6 } 50%{ transform:scale(1.25); opacity:1 } }
+
+  .datarow{ display:flex; gap:10px; width:100%; margin-top:10px; }
+  .datacell{ flex:1; border:2px solid var(--od-light); background:rgba(0,0,0,.35); padding:8px; text-align:center; }
+  .datacell .k{ font-size:9px; letter-spacing:2px; color:var(--khaki-dim); }
+  .datacell .v{ font-family:var(--stencil); font-size:16px; color:var(--khaki); letter-spacing:2px; margin-top:3px; }
+
+  /* ---- FINISHED ---- */
+  #finished{ }
+  .finflash{ animation: finflash 1s steps(2,start) infinite; }
+  @keyframes finflash{ 0%{ background:rgba(192,52,29,.0);} 50%{ background:rgba(192,52,29,.22);} 100%{ background:rgba(192,52,29,0);} }
+  .finished-word{ font-family:var(--stencil); font-size:52px; letter-spacing:6px; color:var(--red);
+    text-shadow:0 0 22px rgba(192,52,29,.6); line-height:.95; }
+  .reveal{ margin-top:18px; border:2px solid var(--amber); background:rgba(0,0,0,.4); padding:16px; width:100%; text-align:center;}
+  .reveal .k{ font-size:11px; letter-spacing:3px; color:var(--khaki-dim); }
+  .reveal .time{ font-family:var(--stencil); font-size:46px; color:var(--amber-bright); letter-spacing:4px;
+    text-shadow:0 0 16px rgba(224,167,43,.5); margin-top:4px; font-variant-numeric:tabular-nums; }
+  .reveal .sub{ font-size:12px; color:var(--khaki-dim); letter-spacing:2px; margin-top:6px; }
+
+  .foot{ text-align:center; font-size:10px; letter-spacing:2px; color:var(--khaki-dim); margin-top:10px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="topbar">
+    <span><span class="dot"></span>&nbsp; SYS ONLINE</span>
+    <span><b>RNG</b>&nbsp;OPS&nbsp;TIMER</span>
+    <span id="clock">--:--</span>
+  </div>
+
+  <!-- ============ SETUP ============ -->
+  <section class="screen active" id="setup">
+    <div class="panel">
+      <div class="label">// MISSION PARAMETERS</div>
+      <h2 style="font-size:20px;color:var(--khaki)">SET TIME RANGE</h2>
+      <p class="hint" style="margin:8px 0 0">
+        Define the minimum and maximum duration. Command will pick a
+        <b style="color:var(--amber)">CLASSIFIED</b> value inside this window.
+        You will not be told the number.
+      </p>
+
+      <div class="rangeblock">
+        <div class="title"><span class="tag">MIN</span> LOWER BOUND</div>
+        <div class="steppers">
+          <div class="unit">
+            <div class="u-label">Hours</div>
+            <div class="u-val" id="minH">0</div>
+            <div class="btns"><button data-t="minH" data-d="-1">–</button><button data-t="minH" data-d="1">+</button></div>
+          </div>
+          <div class="unit">
+            <div class="u-label">Minutes</div>
+            <div class="u-val" id="minM">5</div>
+            <div class="btns"><button data-t="minM" data-d="-1">–</button><button data-t="minM" data-d="1">+</button></div>
+          </div>
+          <div class="unit">
+            <div class="u-label">Seconds</div>
+            <div class="u-val" id="minS">00</div>
+            <div class="btns"><button data-t="minS" data-d="-1">–</button><button data-t="minS" data-d="1">+</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rangeblock">
+        <div class="title"><span class="tag">MAX</span> UPPER BOUND</div>
+        <div class="steppers">
+          <div class="unit">
+            <div class="u-label">Hours</div>
+            <div class="u-val" id="maxH">0</div>
+            <div class="btns"><button data-t="maxH" data-d="-1">–</button><button data-t="maxH" data-d="1">+</button></div>
+          </div>
+          <div class="unit">
+            <div class="u-label">Minutes</div>
+            <div class="u-val" id="maxM">15</div>
+            <div class="btns"><button data-t="maxM" data-d="-1">–</button><button data-t="maxM" data-d="1">+</button></div>
+          </div>
+          <div class="unit">
+            <div class="u-label">Seconds</div>
+            <div class="u-val" id="maxS">00</div>
+            <div class="btns"><button data-t="maxS" data-d="-1">–</button><button data-t="maxS" data-d="1">+</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="err" id="setupErr"></div>
+      <button class="cta" id="lockBtn">LOCK RANGE ▸</button>
+    </div>
+    <div class="foot">RUNS 100% OFFLINE · NO SIGNAL REQUIRED</div>
+  </section>
+
+  <!-- ============ READY ============ -->
+  <section class="screen" id="ready">
+    <div class="panel" style="flex:1; display:flex; flex-direction:column;">
+      <div class="label">// TARGET LOCKED</div>
+      <div class="center">
+        <div class="stamp" style="font-size:16px;color:var(--khaki-dim)">DURATION SEALED</div>
+        <div style="font-family:var(--stencil); font-size:64px; letter-spacing:8px; color:var(--amber-bright); margin:6px 0; text-shadow:0 0 18px rgba(224,167,43,.4)">▓▓:▓▓</div>
+        <div class="stamp" style="font-size:13px;color:var(--khaki-dim)">CLASSIFIED — REVEALED AT ZERO</div>
+
+        <div class="datarow">
+          <div class="datacell"><div class="k">RANGE MIN</div><div class="v" id="rMin">--:--:--</div></div>
+          <div class="datacell"><div class="k">RANGE MAX</div><div class="v" id="rMax">--:--:--</div></div>
+        </div>
+      </div>
+      <button class="cta" id="startBtn">START TIMER ▸</button>
+      <button class="cta ghost" id="reRollBtn">◂ CHANGE RANGE</button>
+    </div>
+  </section>
+
+  <!-- ============ RUNNING ============ -->
+  <section class="screen" id="running">
+    <div class="panel" style="flex:1; display:flex; flex-direction:column;">
+      <div class="label">// MISSION IN PROGRESS</div>
+      <div class="center">
+        <div class="radar">
+          <div class="sweep"></div>
+          <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
+          <div class="cross-h"></div><div class="cross-v"></div>
+          <div class="core">
+            <div class="big">TRACKING</div>
+            <div class="pulse"></div>
+          </div>
+        </div>
+        <div class="stamp" style="font-size:22px;color:var(--green-sig); margin-top:6px; text-shadow:0 0 12px rgba(126,166,64,.5)">COUNTDOWN ACTIVE</div>
+        <div class="stamp" style="font-size:12px;color:var(--khaki-dim); margin-top:8px">TIME REMAINING · CLASSIFIED</div>
+        <div class="datarow">
+          <div class="datacell"><div class="k">STATUS</div><div class="v" style="color:var(--green-sig)">LIVE</div></div>
+          <div class="datacell"><div class="k">ELAPSED</div><div class="v">— HIDDEN —</div></div>
+        </div>
+      </div>
+      <button class="cta danger" id="abortBtn">ABORT MISSION</button>
+    </div>
+  </section>
+
+  <!-- ============ FINISHED ============ -->
+  <section class="screen" id="finished">
+    <div class="panel finflash" style="flex:1; display:flex; flex-direction:column;">
+      <div class="label" style="color:var(--red)">// ALARM · TIME EXPIRED</div>
+      <div class="center">
+        <div class="finished-word">FINISHED</div>
+        <div class="reveal">
+          <div class="k">SEALED DURATION WAS</div>
+          <div class="time" id="revealTime">--:--:--</div>
+          <div class="sub" id="revealSub"></div>
+        </div>
+      </div>
+      <button class="cta danger" id="dismissBtn">DISMISS ALARM</button>
+      <button class="cta ghost" id="againBtn">◂ NEW MISSION</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- State ----------
+  var state = {
+    minH:0, minM:5, minS:0, maxH:0, maxM:15, maxS:0,
+    targetSec:0,
+    deadline:0,
+    running:false,
+    tickTimer:null,
+    audio:null,       // AudioContext
+    keepAlive:null,   // silent osc to keep context alive
+    alarmTimer:null,
+    alarmOn:false
+  };
+
+  var $ = function(id){ return document.getElementById(id); };
+
+  // ---------- Screen switching ----------
+  function show(id){
+    var s = document.querySelectorAll('.screen');
+    for(var i=0;i<s.length;i++) s[i].classList.remove('active');
+    $(id).classList.add('active');
+  }
+
+  // ---------- Live clock (top bar flavor) ----------
+  function pad(n){ return (n<10?'0':'')+n; }
+  setInterval(function(){
+    var d=new Date();
+    $('clock').textContent = pad(d.getHours())+':'+pad(d.getMinutes());
+  }, 1000);
+  (function(){ var d=new Date(); $('clock').textContent = pad(d.getHours())+':'+pad(d.getMinutes()); })();
+
+  // ---------- Steppers ----------
+  function clampField(t, v){
+    if(t==='minH'||t==='maxH') return Math.max(0, Math.min(23, v));
+    return Math.max(0, Math.min(59, v));   // minutes / seconds
+  }
+  function refreshFields(){
+    $('minH').textContent = state.minH;
+    $('minM').textContent = pad(state.minM);
+    $('minS').textContent = pad(state.minS);
+    $('maxH').textContent = state.maxH;
+    $('maxM').textContent = pad(state.maxM);
+    $('maxS').textContent = pad(state.maxS);
+  }
+  document.querySelectorAll('.unit .btns button').forEach(function(b){
+    b.addEventListener('click', function(){
+      var t = b.getAttribute('data-t');
+      var d = parseInt(b.getAttribute('data-d'),10);
+      state[t] = clampField(t, state[t]+d);
+      refreshFields();
+      $('setupErr').textContent='';
+    });
+  });
+  refreshFields();
+
+  function toSec(h,m,s){ return h*3600 + m*60 + (s||0); }
+  function fmt(totalSec){
+    var h=Math.floor(totalSec/3600);
+    var m=Math.floor((totalSec%3600)/60);
+    var s=totalSec%60;
+    return pad(h)+':'+pad(m)+':'+pad(s);
+  }
+  function fmtHM(totalSec){
+    var h=Math.floor(totalSec/3600);
+    var m=Math.floor((totalSec%3600)/60);
+    return pad(h)+':'+pad(m);
+  }
+
+  // ---------- Audio: unlock + keep-alive ----------
+  function ensureAudio(){
+    if(!state.audio){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return null;
+      state.audio = new AC();
+    }
+    if(state.audio.state === 'suspended'){ state.audio.resume(); }
+    // near-silent keep-alive so the context is not reclaimed on mobile
+    if(!state.keepAlive){
+      try{
+        var o = state.audio.createOscillator();
+        var g = state.audio.createGain();
+        g.gain.value = 0.0001;
+        o.frequency.value = 30;
+        o.connect(g); g.connect(state.audio.destination);
+        o.start();
+        state.keepAlive = o;
+      }catch(e){}
+    }
+    return state.audio;
+  }
+
+  // ---------- Alarm: loud repeating two-tone ----------
+  function startAlarm(){
+    var ctx = ensureAudio();
+    if(!ctx){ return; }
+    state.alarmOn = true;
+
+    function beepAt(when, freq, dur){
+      var o = ctx.createOscillator();
+      var g = ctx.createGain();
+      o.type='square';
+      o.frequency.setValueAtTime(freq, when);
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.exponentialRampToValueAtTime(0.6, when+0.02);
+      g.gain.setValueAtTime(0.6, when+dur-0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, when+dur);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(when); o.stop(when+dur+0.02);
+    }
+
+    // schedule one bar (~1s) of urgent two-tone beeping, repeat via interval
+    function bar(){
+      if(!state.alarmOn) return;
+      var t = ctx.currentTime + 0.02;
+      beepAt(t,      900, 0.16);
+      beepAt(t+0.20, 1350,0.16);
+      beepAt(t+0.40, 900, 0.16);
+      beepAt(t+0.60, 1350,0.16);
+    }
+    bar();
+    state.alarmTimer = setInterval(bar, 900);
+  }
+  function stopAlarm(){
+    state.alarmOn = false;
+    if(state.alarmTimer){ clearInterval(state.alarmTimer); state.alarmTimer=null; }
+  }
+
+  // ---------- Wake lock (keep screen on while running) ----------
+  var wakeLock = null;
+  function requestWake(){
+    if('wakeLock' in navigator){
+      navigator.wakeLock.request('screen').then(function(w){ wakeLock=w; }).catch(function(){});
+    }
+  }
+  function releaseWake(){
+    if(wakeLock){ try{ wakeLock.release(); }catch(e){} wakeLock=null; }
+  }
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState==='visible' && state.running){ requestWake(); }
+    if(document.visibilityState==='visible'){ checkDeadline(); }
+  });
+
+  // ---------- Flow: LOCK RANGE ----------
+  $('lockBtn').addEventListener('click', function(){
+    var minSec = toSec(state.minH, state.minM, state.minS);
+    var maxSec = toSec(state.maxH, state.maxM, state.maxS);
+    var err = $('setupErr');
+    if(minSec <= 0 && maxSec <= 0){ err.textContent='! SET A DURATION ABOVE 00:00:00'; return; }
+    if(maxSec < minSec){ err.textContent='! MAX MUST BE ≥ MIN'; return; }
+    if(maxSec <= 0){ err.textContent='! MAX MUST BE ABOVE 00:00:00'; return; }
+    err.textContent='';
+
+    // Unlock audio on this user gesture (early) for reliable mobile playback later.
+    ensureAudio();
+
+    // Pick classified target to the second, inclusive of both bounds.
+    state.targetSec = minSec + Math.floor(Math.random()*(maxSec - minSec + 1));
+
+    $('rMin').textContent = fmt(minSec);
+    $('rMax').textContent = fmt(maxSec);
+    show('ready');
+  });
+
+  $('reRollBtn').addEventListener('click', function(){ show('setup'); });
+
+  // ---------- Flow: START ----------
+  $('startBtn').addEventListener('click', function(){
+    ensureAudio();               // second gesture unlock, just in case
+    requestWake();
+    state.deadline = Date.now() + state.targetSec*1000;
+    state.running = true;
+    show('running');
+    scheduleTick();
+  });
+
+  function scheduleTick(){
+    if(state.tickTimer) clearInterval(state.tickTimer);
+    // check frequently so a background-throttled tab still fires promptly on return
+    state.tickTimer = setInterval(checkDeadline, 250);
+  }
+  function checkDeadline(){
+    if(!state.running) return;
+    if(Date.now() >= state.deadline){
+      finish();
+    }
+  }
+
+  $('abortBtn').addEventListener('click', function(){
+    endRun();
+    show('setup');
+  });
+
+  function endRun(){
+    state.running = false;
+    if(state.tickTimer){ clearInterval(state.tickTimer); state.tickTimer=null; }
+    releaseWake();
+  }
+
+  // ---------- Flow: FINISH ----------
+  function finish(){
+    endRun();
+    $('revealTime').textContent = fmt(state.targetSec);
+    var h=Math.floor(state.targetSec/3600), m=Math.floor((state.targetSec%3600)/60), s=state.targetSec%60;
+    var parts=[];
+    if(h) parts.push(h+(h===1?' HR':' HRS'));
+    if(m) parts.push(m+' MIN');
+    if(s) parts.push(s+' SEC');
+    if(!parts.length) parts.push('0 SEC');
+    $('revealSub').textContent = parts.join(' · ');
+    show('finished');
+    startAlarm();
+  }
+
+  $('dismissBtn').addEventListener('click', function(){ stopAlarm(); });
+  $('againBtn').addEventListener('click', function(){
+    stopAlarm();
+    show('setup');
+  });
+
+})();
+</script>
+</body>
+</html>
