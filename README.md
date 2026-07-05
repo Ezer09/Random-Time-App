@@ -2,8 +2,9 @@
 
 A single-file, offline **random mystery timer** with a military-fitness style UI.
 
-You set a **min–max time range** (hours + minutes). The app secretly picks a random
-duration inside that window — you're **not** told the number. You hit **START**, the
+You set a **min–max time range** (hours, minutes + seconds). The app secretly picks a
+random duration inside that window — down to the exact second, so it won't just land on
+a round minute — and you're **not** told the number. You hit **START**, the
 countdown runs **hidden** (no numbers, just a radar/status display), and when it hits
 zero an **alarm sounds**, the screen shows **FINISHED**, and only then is the sealed
 duration revealed.
@@ -29,8 +30,8 @@ Everything lives in **`index.html`** — one file, 100% offline, no server or in
 
 ## Flow
 
-1. **SET TIME RANGE** — dial in MIN (lower bound) and MAX (upper bound) as HH:MM.
-2. **LOCK RANGE** — a random duration is sealed (chosen to the minute, inclusive of
+1. **SET TIME RANGE** — dial in MIN (lower bound) and MAX (upper bound) as HH:MM:SS.
+2. **LOCK RANGE** — a random duration is sealed (chosen to the second, inclusive of
    both bounds). It is never displayed.
 3. **START TIMER** — countdown begins, fully hidden.
 4. **At zero** — loud repeating alarm tone, red flash, **FINISHED**, and the sealed
@@ -45,4 +46,5 @@ You can **ABORT MISSION** any time during a run to bail back to setup.
 - **Accuracy:** the countdown is based on a wall-clock deadline, so it stays correct
   even if the browser throttles the tab in the background; it fires promptly when you
   return to the app.
-- **Range:** minutes 0–59, hours 0–23. MAX must be ≥ MIN and above 00:00.
+- **Range:** hours 0–23, minutes 0–59, seconds 0–59. MAX must be ≥ MIN and above
+  00:00:00.

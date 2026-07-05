@@ -98,16 +98,16 @@
   .rangeblock .title .tag{ font-size:10px; background:var(--od); border:1px solid var(--od-light);
     color:var(--amber); padding:2px 6px; letter-spacing:2px; }
 
-  .steppers{ display:flex; gap:10px; }
-  .unit{ flex:1; display:flex; flex-direction:column; align-items:center;
+  .steppers{ display:flex; gap:8px; }
+  .unit{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:center;
     border:2px solid var(--od-light); background:rgba(0,0,0,.35); }
-  .unit .u-label{ font-size:10px; letter-spacing:2px; color:var(--khaki-dim);
+  .unit .u-label{ font-size:9px; letter-spacing:1px; color:var(--khaki-dim);
     padding:5px 0 2px; text-transform:uppercase; }
-  .unit .u-val{ font-family:var(--stencil); font-size:34px; color:var(--amber-bright);
+  .unit .u-val{ font-family:var(--stencil); font-size:30px; color:var(--amber-bright);
     line-height:1; padding:2px 0 4px; text-shadow:0 0 12px rgba(224,167,43,.35); font-variant-numeric:tabular-nums;}
   .unit .btns{ display:flex; width:100%; border-top:2px solid var(--od-light); }
-  .unit .btns button{ flex:1; background:var(--od); color:var(--khaki); border:0; padding:10px 0;
-    font-size:20px; font-family:var(--stencil); cursor:pointer; }
+  .unit .btns button{ flex:1; min-width:0; background:var(--od); color:var(--khaki); border:0; padding:10px 0;
+    font-size:19px; font-family:var(--stencil); cursor:pointer; }
   .unit .btns button:active{ background:var(--od-light); color:#fff; }
   .unit .btns button:first-child{ border-right:1px solid var(--od-light); }
 
@@ -205,6 +205,11 @@
             <div class="u-val" id="minM">5</div>
             <div class="btns"><button data-t="minM" data-d="-1">–</button><button data-t="minM" data-d="1">+</button></div>
           </div>
+          <div class="unit">
+            <div class="u-label">Seconds</div>
+            <div class="u-val" id="minS">00</div>
+            <div class="btns"><button data-t="minS" data-d="-1">–</button><button data-t="minS" data-d="1">+</button></div>
+          </div>
         </div>
       </div>
 
@@ -220,6 +225,11 @@
             <div class="u-label">Minutes</div>
             <div class="u-val" id="maxM">15</div>
             <div class="btns"><button data-t="maxM" data-d="-1">–</button><button data-t="maxM" data-d="1">+</button></div>
+          </div>
+          <div class="unit">
+            <div class="u-label">Seconds</div>
+            <div class="u-val" id="maxS">00</div>
+            <div class="btns"><button data-t="maxS" data-d="-1">–</button><button data-t="maxS" data-d="1">+</button></div>
           </div>
         </div>
       </div>
@@ -240,8 +250,8 @@
         <div class="stamp" style="font-size:13px;color:var(--khaki-dim)">CLASSIFIED — REVEALED AT ZERO</div>
 
         <div class="datarow">
-          <div class="datacell"><div class="k">RANGE MIN</div><div class="v" id="rMin">--:--</div></div>
-          <div class="datacell"><div class="k">RANGE MAX</div><div class="v" id="rMax">--:--</div></div>
+          <div class="datacell"><div class="k">RANGE MIN</div><div class="v" id="rMin">--:--:--</div></div>
+          <div class="datacell"><div class="k">RANGE MAX</div><div class="v" id="rMax">--:--:--</div></div>
         </div>
       </div>
       <button class="cta" id="startBtn">START TIMER ▸</button>
@@ -299,7 +309,7 @@
 
   // ---------- State ----------
   var state = {
-    minH:0, minM:5, maxH:0, maxM:15,
+    minH:0, minM:5, minS:0, maxH:0, maxM:15, maxS:0,
     targetSec:0,
     deadline:0,
     running:false,
@@ -330,13 +340,15 @@
   // ---------- Steppers ----------
   function clampField(t, v){
     if(t==='minH'||t==='maxH') return Math.max(0, Math.min(23, v));
-    return Math.max(0, Math.min(59, v));   // minutes
+    return Math.max(0, Math.min(59, v));   // minutes / seconds
   }
   function refreshFields(){
     $('minH').textContent = state.minH;
     $('minM').textContent = pad(state.minM);
+    $('minS').textContent = pad(state.minS);
     $('maxH').textContent = state.maxH;
     $('maxM').textContent = pad(state.maxM);
+    $('maxS').textContent = pad(state.maxS);
   }
   document.querySelectorAll('.unit .btns button').forEach(function(b){
     b.addEventListener('click', function(){
@@ -349,7 +361,7 @@
   });
   refreshFields();
 
-  function toSec(h,m){ return h*3600 + m*60; }
+  function toSec(h,m,s){ return h*3600 + m*60 + (s||0); }
   function fmt(totalSec){
     var h=Math.floor(totalSec/3600);
     var m=Math.floor((totalSec%3600)/60);
@@ -438,24 +450,22 @@
 
   // ---------- Flow: LOCK RANGE ----------
   $('lockBtn').addEventListener('click', function(){
-    var minSec = toSec(state.minH, state.minM);
-    var maxSec = toSec(state.maxH, state.maxM);
+    var minSec = toSec(state.minH, state.minM, state.minS);
+    var maxSec = toSec(state.maxH, state.maxM, state.maxS);
     var err = $('setupErr');
-    if(minSec <= 0 && maxSec <= 0){ err.textContent='! SET A DURATION ABOVE 00:00'; return; }
+    if(minSec <= 0 && maxSec <= 0){ err.textContent='! SET A DURATION ABOVE 00:00:00'; return; }
     if(maxSec < minSec){ err.textContent='! MAX MUST BE ≥ MIN'; return; }
-    if(maxSec <= 0){ err.textContent='! MAX MUST BE ABOVE 00:00'; return; }
+    if(maxSec <= 0){ err.textContent='! MAX MUST BE ABOVE 00:00:00'; return; }
     err.textContent='';
 
     // Unlock audio on this user gesture (early) for reliable mobile playback later.
     ensureAudio();
 
-    // Pick classified target to the minute, inclusive of both bounds.
-    var minM = Math.floor(minSec/60), maxM = Math.floor(maxSec/60);
-    var pickM = minM + Math.floor(Math.random()*(maxM - minM + 1));
-    state.targetSec = pickM * 60;
+    // Pick classified target to the second, inclusive of both bounds.
+    state.targetSec = minSec + Math.floor(Math.random()*(maxSec - minSec + 1));
 
-    $('rMin').textContent = fmtHM(minSec);
-    $('rMax').textContent = fmtHM(maxSec);
+    $('rMin').textContent = fmt(minSec);
+    $('rMax').textContent = fmt(maxSec);
     show('ready');
   });
 
@@ -498,11 +508,12 @@
   function finish(){
     endRun();
     $('revealTime').textContent = fmt(state.targetSec);
-    var h=Math.floor(state.targetSec/3600), m=Math.floor((state.targetSec%3600)/60);
+    var h=Math.floor(state.targetSec/3600), m=Math.floor((state.targetSec%3600)/60), s=state.targetSec%60;
     var parts=[];
     if(h) parts.push(h+(h===1?' HR':' HRS'));
     if(m) parts.push(m+' MIN');
-    if(!parts.length) parts.push('0 MIN');
+    if(s) parts.push(s+' SEC');
+    if(!parts.length) parts.push('0 SEC');
     $('revealSub').textContent = parts.join(' · ');
     show('finished');
     startAlarm();
