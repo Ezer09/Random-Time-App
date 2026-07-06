@@ -7,6 +7,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="RNG TIMER" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
+<link rel="manifest" href="manifest.webmanifest" />
 <title>RANDOM OPS TIMER</title>
 <style>
   :root{
@@ -308,6 +312,7 @@
   "use strict";
 
   // ---------- State ----------
+  var LS_KEY = 'rngops.range.v1';
   var state = {
     minH:0, minM:5, minS:0, maxH:0, maxM:15, maxS:0,
     targetSec:0,
@@ -317,7 +322,10 @@
     audio:null,       // AudioContext
     keepAlive:null,   // silent osc to keep context alive
     alarmTimer:null,
-    alarmOn:false
+    alarmOn:false,
+    bgAudio:null,     // <audio> playing silence->alarm so it fires through screen-lock
+    bgUrl:null,       // object URL for the generated track
+    usedBg:false
   };
 
   var $ = function(id){ return document.getElementById(id); };
@@ -350,12 +358,31 @@
     $('maxM').textContent = pad(state.maxM);
     $('maxS').textContent = pad(state.maxS);
   }
+  function saveSettings(){
+    try{
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        minH:state.minH, minM:state.minM, minS:state.minS,
+        maxH:state.maxH, maxM:state.maxM, maxS:state.maxS
+      }));
+    }catch(e){}
+  }
+  // Restore the range from the last session so reopening keeps your values.
+  try{
+    var saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    if(saved){
+      ['minH','minM','minS','maxH','maxM','maxS'].forEach(function(k){
+        if(typeof saved[k]==='number') state[k] = clampField(k, saved[k]);
+      });
+    }
+  }catch(e){}
+
   document.querySelectorAll('.unit .btns button').forEach(function(b){
     b.addEventListener('click', function(){
       var t = b.getAttribute('data-t');
       var d = parseInt(b.getAttribute('data-d'),10);
       state[t] = clampField(t, state[t]+d);
       refreshFields();
+      saveSettings();
       $('setupErr').textContent='';
     });
   });
@@ -433,6 +460,72 @@
     if(state.alarmTimer){ clearInterval(state.alarmTimer); state.alarmTimer=null; }
   }
 
+  // ---------- Background alarm track ----------
+  // iOS freezes JS when the app is backgrounded or the phone is locked, so a normal
+  // countdown can't ring in the background. Workaround: the moment the user hits START
+  // we begin playing ONE audio track = [silence for the secret duration] + [alarm tone].
+  // Audio that is already playing keeps playing through a screen-lock, so the alarm
+  // still sounds at zero even with the phone locked / app switched away.
+  var BG_CAP_SEC = 3600;    // pre-render up to 1 hour of lead silence
+  var ALARM_TAIL_SEC = 120; // how long the baked-in alarm rings
+
+  function buildAlarmWavUrl(leadSec){
+    try{
+      var SR = 8000;                               // low rate keeps the file small
+      var total = (leadSec + ALARM_TAIL_SEC) * SR; // total samples
+      var buf = new ArrayBuffer(44 + total*2);
+      var dv = new DataView(buf);
+      function wstr(o,s){ for(var i=0;i<s.length;i++) dv.setUint8(o+i, s.charCodeAt(i)); }
+      wstr(0,'RIFF'); dv.setUint32(4, 36+total*2, true); wstr(8,'WAVE');
+      wstr(12,'fmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true);
+      dv.setUint16(22,1,true); dv.setUint32(24,SR,true); dv.setUint32(28,SR*2,true);
+      dv.setUint16(32,2,true); dv.setUint16(34,16,true);
+      wstr(36,'data'); dv.setUint32(40,total*2,true);
+      // Lead is silence (Int16 zeros — already set). Fill the tail with urgent two-tone beeps.
+      var idx = 44 + leadSec*SR*2;
+      var amp = 12000;
+      var pattern = [ [900,0.16],[0,0.05],[1350,0.16],[0,0.05] ]; // [freq, seconds]
+      var pi = 0, ps = 0;
+      for(var i=0;i<ALARM_TAIL_SEC*SR;i++){
+        var f = pattern[pi][0];
+        var v = f>0 ? (Math.sin(2*Math.PI*f*(i/SR))>=0 ? amp : -amp) : 0;
+        dv.setInt16(idx, v, true); idx += 2;
+        if(++ps >= pattern[pi][1]*SR){ ps=0; pi=(pi+1)%pattern.length; }
+      }
+      return URL.createObjectURL(new Blob([buf], {type:'audio/wav'}));
+    }catch(e){ return null; }
+  }
+
+  function startBgTrack(){
+    stopBgTrack();
+    state.usedBg = false;
+    if(state.targetSec > BG_CAP_SEC) return;   // too long to pre-render; foreground only
+    var url = buildAlarmWavUrl(state.targetSec);
+    if(!url) return;
+    var a = new Audio();
+    a.src = url; a.loop = false; a.preload = 'auto'; a.volume = 1.0;
+    a.setAttribute('playsinline','');
+    var p = a.play();                          // must run inside the START gesture
+    if(p && p.catch){ p.catch(function(){}); }
+    state.bgAudio = a; state.bgUrl = url; state.usedBg = true;
+  }
+  function stopBgTrack(){
+    if(state.bgAudio){ try{ state.bgAudio.pause(); state.bgAudio.src=''; }catch(e){} state.bgAudio=null; }
+    if(state.bgUrl){ try{ URL.revokeObjectURL(state.bgUrl); }catch(e){} state.bgUrl=null; }
+  }
+
+  // ---------- Notifications (best-effort; helps on Android / desktop) ----------
+  function askNotify(){
+    try{ if('Notification' in window && Notification.permission==='default'){ Notification.requestPermission(); } }catch(e){}
+  }
+  function notifyFinish(){
+    try{
+      if('Notification' in window && Notification.permission==='granted'){
+        new Notification('MISSION COMPLETE', { body:'Timer finished — '+fmt(state.targetSec), tag:'rngops' });
+      }
+    }catch(e){}
+  }
+
   // ---------- Wake lock (keep screen on while running) ----------
   var wakeLock = null;
   function requestWake(){
@@ -474,9 +567,11 @@
   // ---------- Flow: START ----------
   $('startBtn').addEventListener('click', function(){
     ensureAudio();               // second gesture unlock, just in case
+    askNotify();
     requestWake();
     state.deadline = Date.now() + state.targetSec*1000;
     state.running = true;
+    startBgTrack();              // silent->alarm track that survives screen-lock
     show('running');
     scheduleTick();
   });
@@ -502,6 +597,7 @@
     state.running = false;
     if(state.tickTimer){ clearInterval(state.tickTimer); state.tickTimer=null; }
     releaseWake();
+    stopBgTrack();               // background track's job is done once we're foreground
   }
 
   // ---------- Flow: FINISH ----------
@@ -516,12 +612,13 @@
     if(!parts.length) parts.push('0 SEC');
     $('revealSub').textContent = parts.join(' · ');
     show('finished');
-    startAlarm();
+    startAlarm();                // loud beeps that loop until dismissed (foreground)
+    notifyFinish();
   }
 
-  $('dismissBtn').addEventListener('click', function(){ stopAlarm(); });
+  $('dismissBtn').addEventListener('click', function(){ stopAlarm(); stopBgTrack(); });
   $('againBtn').addEventListener('click', function(){
-    stopAlarm();
+    stopAlarm(); stopBgTrack();
     show('setup');
   });
 

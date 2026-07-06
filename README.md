@@ -41,10 +41,24 @@ You can **ABORT MISSION** any time during a run to bail back to setup.
 
 ## Notes
 
+- **Remembers your range:** the last min/max you set is saved on the device, so
+  reopening the app restores your values instead of the defaults.
 - **Alarm:** a synthesized two-tone beep generated in-browser (Web Audio) — no audio
   file needed, works fully offline. It loops until you dismiss it.
+- **Rings even when the phone is locked / app is backgrounded:** iOS freezes a web
+  app's code the moment you leave it, so a plain countdown can't ring in the
+  background. Workaround: when you press START the app immediately begins playing a
+  single silent audio track with the alarm tone baked onto the end of it. Audio that's
+  already playing keeps playing through a screen-lock, so the alarm still sounds at
+  zero. This is the best a home-screen web app can do — a native app is the only way to
+  *guarantee* background alarms. Pre-rendered for durations up to 1 hour; longer timers
+  fall back to ringing when you reopen the app. The screen is also kept awake (Wake
+  Lock) while a timer runs and the app is open.
 - **Accuracy:** the countdown is based on a wall-clock deadline, so it stays correct
   even if the browser throttles the tab in the background; it fires promptly when you
   return to the app.
+- **Home-screen icon:** ships a custom tactical "mystery stopwatch" icon
+  (`apple-touch-icon.png` / `icon-*.png`) and a web app manifest, so **Add to Home
+  Screen** gives a proper app icon and a full-screen standalone launch.
 - **Range:** hours 0–23, minutes 0–59, seconds 0–59. MAX must be ≥ MIN and above
   00:00:00.
